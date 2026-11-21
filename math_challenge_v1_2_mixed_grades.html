@@ -1,0 +1,65 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Math Challenge</title><style>:root{font-family:system-ui,sans-serif;color-scheme:dark;background:#101827;color:#f3f6ff}*{box-sizing:border-box}body{margin:0;padding:20px}.app{max-width:820px;margin:auto}h1{margin:0 0 5px;font-size:2rem}.muted{color:#aab8d0}section,.panel{background:#1b2940;border:1px solid #354760;border-radius:18px;padding:20px;margin-top:16px}label{display:block;font-weight:650;margin:12px 0 6px}input,select,button{font:inherit;border-radius:10px;padding:12px;background:#101d32;color:white;border:1px solid #50617b}input,select{width:100%}button{cursor:pointer;font-weight:700}button.primary{background:#39b6a1;color:#071a1a;border:0}button:disabled{opacity:.45;cursor:default}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.hidden{display:none!important}.skills{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.skill{display:flex;align-items:center;gap:8px;padding:10px;background:#101d32;border-radius:10px;font-size:.92rem}.skill input{width:auto}.question{font-size:clamp(2.6rem,10vw,5rem);text-align:center;font-weight:850;padding:25px 5px}.answers{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.answers button{min-height:72px;font-size:1.6rem}.score{display:flex;flex-wrap:wrap;gap:10px}.score span{padding:9px 13px;background:#101d32;border-radius:10px}.feedback{text-align:center;font-weight:750;min-height:32px;margin:12px}.controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}.pill{display:inline-block;padding:5px 12px;background:#314765;border-radius:20px}.good{color:#74e8b0}.bad{color:#ff9b9b}@media(max-width:520px){.grid,.skills{grid-template-columns:1fr}section{padding:15px}}</style></head><body><main class="app"><h1>🧮 Math Challenge</h1><div class="muted">Practice, compete, and level up! Each player can choose their own grade.</div><section id="setup"><div class="grid"><div><label for="difficulty">Difficulty</label><select id="difficulty"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select></div><div><label for="players">Players</label><select id="players"><option value="1">1 player</option><option value="2" selected>2 players</option><option value="3">3 players</option><option value="4">4 players</option></select></div><div><label for="count">Questions: <output id="countOut">21</output></label><input id="count" type="range" min="5" max="90" value="21"></div></div><div id="names" class="grid"></div><label>Problem types (choose one or more for each grade)</label><div id="skillGroups"></div><p class="muted" id="skillNote">Each player receives questions from their selected grade. All players share the difficulty setting.</p><button class="primary" id="start">Start game</button></section><section id="game" class="hidden"><div class="controls"><span class="pill" id="progress"></span><span class="pill" id="turn"></span></div><div class="score" id="scores" style="margin-top:15px"></div><div class="question" id="question"></div><div class="answers" id="answers"></div><div class="feedback" id="feedback" aria-live="polite"></div><div class="controls"><button id="next" class="primary hidden">Next question</button><button id="quit">New game</button></div></section><section id="finish" class="hidden"><h2>🏆 Game complete!</h2><div id="results"></div><button id="again" class="primary">Play again</button></section></main><script>
+const $=id=>document.getElementById(id),rand=(a,b)=>Math.floor(Math.random()*(b-a+1))+a,shuffle=a=>{for(let i=a.length-1;i>0;i--){let j=rand(0,i);[a[i],a[j]]=[a[j],a[i]]}return a};
+const catalog={1:[['add','Addition'],['sub','Subtraction'],['missing','Missing numbers'],['tens','Adding tens'],['multiply','Bonus multiplication']],4:[['multiply','Multiplication facts'],['division','Division facts'],['add','Multi-digit addition'],['sub','Multi-digit subtraction'],['bigmultiply','Multi-digit multiplication'],['fractions','Equivalent fractions'],['round','Rounding'],['word','Word problems']]};
+let state=null;
+function renderNames(){
+ const n=+$('players').value;
+ const old=[...$('names').querySelectorAll('.player-config')].map(el=>({name:el.querySelector('input').value,grade:el.querySelector('select').value}));
+ $('names').innerHTML='';
+ for(let i=0;i<n;i++){
+  const wrap=document.createElement('div');wrap.className='player-config';
+  const nameLabel=document.createElement('label');nameLabel.textContent=`Player ${i+1} name`;
+  const input=document.createElement('input');input.id='name'+i;input.value=old[i]?.name||`Player ${i+1}`;
+  const gradeLabel=document.createElement('label');gradeLabel.textContent=`Player ${i+1} grade`;
+  const select=document.createElement('select');select.id='grade'+i;
+  [[1,'1st Grade'],[4,'4th Grade']].forEach(([value,label])=>{let option=document.createElement('option');option.value=value;option.textContent=label;select.append(option)});
+  select.value=old[i]?.grade||(i===1?'4':'1');select.onchange=renderSkills;
+  wrap.append(nameLabel,input,gradeLabel,select);$('names').append(wrap);
+ }
+ renderSkills();
+}
+function renderSkills(){
+ const selected={};
+ document.querySelectorAll('#skillGroups input[type=checkbox]').forEach(cb=>selected[cb.dataset.grade+':'+cb.value]=cb.checked);
+ const grades=[...new Set([...$('names').querySelectorAll('select')].map(el=>+el.value))].sort();
+ $('skillGroups').innerHTML='';
+ grades.forEach(g=>{
+  const title=document.createElement('p');title.className='muted';title.style.marginBottom='7px';title.textContent=g===1?'1st Grade skills':'4th Grade skills';
+  const group=document.createElement('div');group.className='skills';
+  catalog[g].forEach(([id,name])=>{
+   const label=document.createElement('label');label.className='skill';
+   const cb=document.createElement('input');cb.type='checkbox';cb.dataset.grade=g;cb.value=id;
+   cb.checked=selected[g+':'+id]??(g===1?['add','sub'].includes(id):['multiply','division'].includes(id));
+   label.append(cb,document.createTextNode(name));group.append(label);
+  });
+  $('skillGroups').append(title,group);
+ });
+}
+function makeProblem(g,d,t){let m=d==='easy'?0:d==='medium'?1:2,a,b,c,answer,prompt; if(g===1){let cap=[10,20,50][m];switch(t){case 'add':a=rand(0,cap);b=rand(0,cap-a);answer=a+b;prompt=`${a} + ${b} = ?`;break;case 'sub':a=rand(0,cap);b=rand(0,a);answer=a-b;prompt=`${a} − ${b} = ?`;break;case 'missing':answer=rand(0,cap);b=rand(0,cap-answer);prompt=`? + ${b} = ${answer+b}`;break;case 'tens':a=rand(1,m===2?9:5)*10;b=rand(1,m===2?9:5)*10;answer=a+b;prompt=`${a} + ${b} = ?`;break;default:a=[2,5,10][rand(0,m===0?0:m===1?1:2)];b=rand(1,m===0?5:10);answer=a*b;prompt=`${a} × ${b} = ?`}}else{switch(t){case 'multiply':a=rand(2,[6,10,12][m]);b=rand(2,[6,10,12][m]);answer=a*b;prompt=`${a} × ${b} = ?`;break;case 'division':b=rand(2,[6,10,12][m]);answer=rand(2,[6,10,12][m]);prompt=`${b*answer} ÷ ${b} = ?`;break;case 'add':a=rand(10,[99,999,9999][m]);b=rand(10,[99,999,9999][m]);answer=a+b;prompt=`${a} + ${b} = ?`;break;case 'sub':a=rand(10,[99,999,9999][m]);b=rand(0,a);answer=a-b;prompt=`${a} − ${b} = ?`;break;case 'bigmultiply':a=rand(10,[20,60,99][m]);b=rand(2,[9,12,25][m]);answer=a*b;prompt=`${a} × ${b} = ?`;break;case 'fractions':{let denom=[4,6,8,10,12][rand(0,m===0?1:m===1?3:4)],num=rand(1,denom-1),factor=rand(2,m===2?5:3);answer=num*factor;prompt=`${num}/${denom} = ?/${denom*factor}`;break}case 'round':{let place=[10,100,1000][m];a=rand(place,place*9-1);answer=Math.round(a/place)*place;prompt=`Round ${a} to nearest ${place}`;break}default:a=rand(2,[8,12,20][m]);b=rand(2,[6,10,15][m]);answer=a*b;prompt=`${a} bags with ${b} apples each. Total apples?`}}return {prompt,answer};}
+function choices(correct){let set=new Set([correct]);let delta=Math.max(3,Math.round(Math.abs(correct)*.18));for(let tries=0;set.size<4&&tries<100;tries++){let v=correct+rand(-delta,delta);if(v>=0&&v!==correct)set.add(v);if(tries%20===19)delta*=2}let k=1;while(set.size<4){set.add(correct+k++)}return shuffle([...set]);}
+function start(){
+ const players=Array.from({length:+$('players').value},(_,i)=>({name:$('name'+i).value.trim()||`Player ${i+1}`,grade:+$('grade'+i).value,score:0,correct:0,attempts:0}));
+ const types={};
+ for(const grade of new Set(players.map(p=>p.grade))){
+  types[grade]=[...document.querySelectorAll(`#skillGroups input[data-grade="${grade}"]:checked`)].map(x=>x.value);
+  if(!types[grade].length){alert(`Choose at least one ${grade===1?'1st':'4th'} grade problem type.`);return}
+ }
+ state={difficulty:$('difficulty').value,types,players,total:+$('count').value,index:0,answered:false,problem:null};
+ $('setup').classList.add('hidden');$('finish').classList.add('hidden');$('game').classList.remove('hidden');showQuestion();
+}
+function showQuestion(){
+ const s=state;if(s.index>=s.total){finish();return}
+ s.answered=false;
+ const player=s.players[s.index%s.players.length],skills=s.types[player.grade],type=skills[rand(0,skills.length-1)];
+ s.problem=makeProblem(player.grade,s.difficulty,type);
+ $('progress').textContent=`Question ${s.index+1} of ${s.total}`;
+ $('turn').textContent=`${player.name}'s turn · ${player.grade===1?'1st':'4th'} Grade`;
+ $('scores').innerHTML='';s.players.forEach(p=>{let span=document.createElement('span');span.textContent=`${p.name} (${p.grade===1?'1st':'4th'}): ${p.score}`;$('scores').append(span)});
+ $('question').textContent=s.problem.prompt;$('feedback').textContent='';$('next').classList.add('hidden');$('answers').innerHTML='';
+ choices(s.problem.answer).forEach(v=>{let btn=document.createElement('button');btn.textContent=v;btn.onclick=()=>answer(v);$('answers').append(btn)});
+}
+function answer(v){let s=state;if(s.answered)return;s.answered=true;let p=s.players[s.index%s.players.length],ok=v===s.problem.answer;p.attempts++;if(ok){p.score+=10;p.correct++}$('feedback').textContent=ok?'✓ Correct! +10 points':`Not quite. The answer is ${s.problem.answer}.`;$('feedback').className='feedback '+(ok?'good':'bad');[...$('answers').children].forEach(b=>{b.disabled=true;if(+b.textContent===s.problem.answer)b.style.borderColor='#67e8ae'});$('next').textContent=s.index===s.total-1?'See results':'Next question';$('next').classList.remove('hidden')}
+function finish(){let s=state;$('game').classList.add('hidden');$('finish').classList.remove('hidden');let sorted=[...s.players].sort((a,b)=>b.score-a.score);$('results').innerHTML='';sorted.forEach((p,i)=>{let line=document.createElement('p');line.textContent=`${i+1}. ${p.name} (${p.grade===1?'1st':'4th'} Grade) — ${p.score} points (${p.correct}/${p.attempts} correct)`;$('results').append(line)});if(sorted.length>1&&sorted[0].score===sorted[1].score){let p=document.createElement('p');p.textContent='Top score is a tie!';$('results').prepend(p)}}
+function reset(){$('game').classList.add('hidden');$('finish').classList.add('hidden');$('setup').classList.remove('hidden')}
+$('players').onchange=renderNames;$('count').oninput=()=>$('countOut').textContent=$('count').value;$('start').onclick=start;$('next').onclick=()=>{state.index++;showQuestion()};$('quit').onclick=reset;$('again').onclick=reset;renderNames();
+</script></body></html>
